@@ -17,3 +17,9 @@ export function isSchoolDate(value: string): boolean {
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
 }
+
+export function isWeekendSchoolDate(value: string): boolean {
+  if (!isSchoolDate(value)) return false;
+  const day = new Date(`${value}T00:00:00.000Z`).getUTCDay();
+  return day === 0 || day === 6;
+}

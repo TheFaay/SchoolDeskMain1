@@ -7,6 +7,7 @@ export const ROLE_HOMES = {
   teacher: "/dashboard/teacher",
   bursar: "/dashboard/bursar",
   admin: "/dashboard/admin",
+  applicant: "/admissions/account",
 } as const;
 
 export type DemoRole = keyof typeof ROLE_HOMES;

@@ -47,8 +47,9 @@ async function TeacherPanel() {
             Enter scores
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            CA (30) and exam (70) entry for your subjects will appear here.
+            Enter CA and exam marks for the classes and subjects assigned to you.
           </p>
+          <Link href="/dashboard/teacher/scores" className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-[#12264F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0d1b3a]">Open score entry</Link>
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="font-[family-name:var(--font-poppins)] font-semibold text-[#12264F]">

@@ -20,7 +20,7 @@ export default function LoginPage() {
           Crown Heights Academy
         </h1>
         <p className="mt-2 text-sm text-slate-600">
-          Sign in to view results, fees and notices.
+          Parents can view school updates; applicants can track admissions.
         </p>
       </section>
 

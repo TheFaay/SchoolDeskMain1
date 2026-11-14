@@ -8,12 +8,17 @@ import {
   listInvoicesForParent,
   listPaymentsForParent,
 } from "@/lib/fees/repository";
+import { koboToNaira, nairaToKobo } from "@/lib/fees/invoice";
+import { requireRole } from "@/lib/auth/session";
+import PermissionDenied from "@/app/dashboard/PermissionDenied";
 
 export const metadata: Metadata = {
   title: "Receipts | Crown Heights Academy",
 };
 
 export default async function ReceiptsPage() {
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") return <main className="mx-auto max-w-xl px-5 py-8"><PermissionDenied /></main>;
   await connection();
 
   const parent = await getCurrentParent();
@@ -21,17 +26,15 @@ export default async function ReceiptsPage() {
   const invoices = await listInvoicesForParent(parent.id);
   const payments = await listPaymentsForParent(parent.id);
 
-  const receipts = payments.flatMap((payment) => {
+  const successfulPayments = payments.filter((payment) => payment.status === "success");
+  const receipts = successfulPayments.flatMap((payment) => {
     const invoice = invoices.find((item) => item.id === payment.invoiceId);
     const student = students.find((item) => item.id === invoice?.studentId);
 
     return invoice && student ? [{ payment, invoice, student }] : [];
   });
 
-  const totalPaid = payments.reduce(
-    (total, payment) => total + payment.amount,
-    0,
-  );
+  const totalPaid = koboToNaira(successfulPayments.reduce((total, payment) => total + nairaToKobo(payment.amount), 0));
 
   return (
     <div className="space-y-6">
@@ -46,7 +49,7 @@ export default async function ReceiptsPage() {
           Receipts
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-          Every successful test payment gets a receipt. Open one to print it or
+          Every successful payment gets a receipt. Open one to print it or
           check the balance after that payment.
         </p>
         <p className="mt-3 inline-block rounded-full bg-[#fffaf0] px-3 py-1 text-xs font-semibold text-[#7a5c0f] ring-1 ring-inset ring-[#c9a227]/30">
@@ -84,7 +87,7 @@ export default async function ReceiptsPage() {
                       {formatNaira(payment.amount)}
                     </p>
                     <p className="mt-0.5 inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-                      Test payment
+                      {payment.method.replaceAll("_", " ")}
                     </p>
                   </div>
                 </div>

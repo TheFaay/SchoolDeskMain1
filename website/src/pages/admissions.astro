@@ -1,11 +1,12 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { applicationUrl } from "../lib/public-links";
 import PageHero from "../components/PageHero.astro";
 ---
 
 <BaseLayout
   title="Admissions | Crown Heights Academy"
-  description="Admissions for JSS 1 to SS 3 at Crown Heights Academy. Application fee ₦5,000. Entrance exam Saturday, 16 January 2027. See the documents you need."
+  description="Apply to Crown Heights Academy in Benin City for JSS 1 to SS 3. Start your application online, review required documents and pay the ₦80,000 application fee securely."
 >
   <PageHero
     eyebrow="Admissions"
@@ -18,13 +19,13 @@ import PageHero from "../components/PageHero.astro";
       <div class="key-facts">
         <div class="key-fact" id="fees">
           <span class="key-fact-label">Application fee</span>
-          <strong>₦5,000</strong>
-          <small>Paid at the school office when you submit your application.</small>
+          <strong>₦80,000</strong>
+          <small>Pay securely online as part of your application.</small>
         </div>
         <div class="key-fact" id="entrance-exam">
           <span class="key-fact-label">Entrance exam</span>
-          <strong>Saturday, 16 January 2027</strong>
-          <small>The school office will confirm the time after you apply.</small>
+          <strong>Details shared after application</strong>
+          <small>The school office will confirm the assessment date and time.</small>
         </div>
         <div class="key-fact">
           <span class="key-fact-label">Classes</span>
@@ -94,24 +95,24 @@ import PageHero from "../components/PageHero.astro";
 
       <ol class="steps">
         <li class="step">
-          <h3>Complete an application form</h3>
+          <h3>Complete the online application</h3>
           <p>
-            Collect an application form from the school office, or contact us to
-            ask how to get one.
+            Submit your child's details and supporting documents through our
+            secure online admissions form.
           </p>
         </li>
         <li class="step">
-          <h3>Pay the ₦5,000 application fee</h3>
+          <h3>Pay the ₦80,000 application fee</h3>
           <p>
-            The application fee is paid at the school office when you submit
-            your completed form.
+            Pay securely online when prompted. You can resume payment later
+            using your application reference and parent email.
           </p>
         </li>
         <li class="step">
           <h3>Sit the entrance exam</h3>
           <p>
-            Join us on Saturday, 16 January 2027. We will confirm the time and
-            arrangements once your application is received.
+            The school office will contact you with the assessment date, time
+            and arrangements after your application is received.
           </p>
         </li>
       </ol>
@@ -163,7 +164,7 @@ import PageHero from "../components/PageHero.astro";
         <a class="btn btn--primary" href="/contact">
           Contact admissions <span class="btn-arrow" aria-hidden="true">→</span>
         </a>
-        <a class="btn btn--outline" href="tel:+2348000000000">Call the school</a>
+        <a class="btn btn--outline" href={applicationUrl}>Apply online</a>
       </div>
     </div>
   </section>

@@ -6,18 +6,19 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { TERM_LABELS, type TermLabel } from "@/app/lib/results/sampleData";
+import { TERM_LABELS, type TermLabel } from "@/lib/results/types";
 import {
   canParentView,
   getChildren,
   getClassStanding,
   getCurrentSession,
-  getSampleParent,
+  getTermAvailability,
   getTermResult,
-} from "@/app/lib/results/getResults";
+} from "@/lib/results/getResults";
 import ReportSheet from "./ReportSheet";
 import PrintButton from "./PrintButton";
-import { reportSheetFileName } from "@/app/lib/results/reportSheetFileName";
+import { reportSheetFileName } from "@/lib/results/reportSheetFileName";
+import { requireRole } from "@/lib/auth/session";
 
 const NAVY = "#12264F";
 
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 // One A4 portrait page on paper. On screen we keep a preview style.
-export const A4_PRINT_CSS = `
+const A4_PRINT_CSS = `
 @page { size: A4 portrait; margin: 13mm 12mm; }
 @media print {
   body { background: #ffffff !important; }
@@ -69,19 +70,23 @@ async function ReportSheetPanel({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // ---------------------------------------------------------------------
-  // TODO(security): same as the results page — when Better Auth lands,
-  // resolve the parent and children from the session and check the role
-  // before reading any data. Parents may see only their own children.
-  // ---------------------------------------------------------------------
-  const parent = getSampleParent();
-  const session = getCurrentSession();
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") {
+    return <main className="p-8">You do not have permission to view results.</main>;
+  }
+  const parent = gate.user;
+  const parentChildren = await getChildren(parent.id);
+  if (parentChildren.length === 0) {
+    return <Blocker tone="info" title="No children are linked to this account.">Contact the school office to link your child to your portal account.</Blocker>;
+  }
+  const session = await getCurrentSession();
   const url = await searchParams;
 
-  const requestedChildId = first(url.child) ?? parent.childrenIds[0];
+  const requestedChildId = first(url.child) ?? parentChildren[0]?.id ?? "";
   const term = parseTerm(first(url.term));
 
-  const ownsChild = canParentView(parent.id, requestedChildId);
-  const child = getChildren(parent.id).find((c) => c.id === requestedChildId);
+  const ownsChild = await canParentView(parent.id, requestedChildId);
+  const child = parentChildren.find((c) => c.id === requestedChildId);
 
   if (!ownsChild) {
     return (
@@ -91,17 +96,19 @@ async function ReportSheetPanel({
     );
   }
 
-  const result = getTermResult(requestedChildId, term, session);
+  const availability = await getTermAvailability(requestedChildId, term, session);
+  const result = availability === "ready" ? await getTermResult(requestedChildId, term, session) : null;
 
-  if (!result || !result.published) {
+  if (availability !== "ready" || !result || !result.published) {
+    const title = availability === "no-scores" ? "No scores are available for this term yet." : availability === "no-calendar" ? "Term details are not available yet." : "Results for this term have not been published yet.";
     return (
-      <Blocker tone="info" title="Results for this term have not been published yet.">
-        We will email you when they are ready. There is nothing you need to do.
+      <Blocker tone="info" title={title}>
+        {availability === "no-scores" ? "The school has not entered scores for this term." : availability === "no-calendar" ? "The school calendar has not been set up for this term." : "We will email you when they are ready. There is nothing you need to do."}
       </Blocker>
     );
   }
 
-  const standing = getClassStanding(result);
+  const standing = await getClassStanding(result);
 
   return (
     <>
@@ -126,7 +133,7 @@ async function ReportSheetPanel({
               term: parseTerm(first(url.term)),
             }).toString()}`}
             download={reportSheetFileName(
-              getChildren(parent.id).find((c) => c.id === requestedChildId)?.name ?? "",
+              parentChildren.find((c) => c.id === requestedChildId)?.name ?? "",
               term,
             )}
             type="application/pdf"
@@ -140,7 +147,7 @@ async function ReportSheetPanel({
 
       <ReportSheet
         studentName={child?.name ?? ""}
-        className={child?.className ?? ""}
+        className={result.className}
         admissionNumber={child?.admissionNumber ?? ""}
         term={term}
         session={session}
@@ -148,9 +155,10 @@ async function ReportSheetPanel({
         standing={standing}
       />
 
+      {child && child.className !== result.className ? <p className="print-hide mt-3 text-sm text-slate-600">This student has since moved classes. This report shows the class recorded for {term} term.</p> : null}
+
       <p className="print-hide mt-4 text-xs text-slate-500">
-        SAMPLE DATA — this sheet shows test data only and will be replaced by the
-        school&apos;s database once the team connects results storage.
+        Scores and attendance are read from the school database.
       </p>
     </>
   );

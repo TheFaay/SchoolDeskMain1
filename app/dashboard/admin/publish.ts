@@ -9,12 +9,15 @@
 import { revalidatePath } from "next/cache";
 
 import { getCurrentUser } from "@/lib/auth/session";
+import { sendEmail } from "@/lib/email/send";
+import { emailTemplates } from "@/lib/email/templates";
 import {
-  classExists,
+  getClassResultProgress,
+  getClassSession,
+  listPublishedResults,
   listClassParentRecipients,
   setResultsPublished,
   unpublishResults,
-  type ParentRecipient,
 } from "@/lib/results/repository";
 import type { ScoreTerm } from "@/lib/db/schema";
 
@@ -25,55 +28,9 @@ export type PublishActionState = {
 
 const TERMS: ScoreTerm[] = ["first", "second", "third"];
 
-/** Email subject and body use the parent's and child's real names. */
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
-const EMAIL_FROM = "Crown Heights Academy <onboarding@resend.dev>";
-
 function readTerm(value: FormDataEntryValue | null): ScoreTerm | null {
   const text = String(value ?? "");
   return TERMS.includes(text as ScoreTerm) ? (text as ScoreTerm) : null;
-}
-
-/** Sends one email per child to the notice inbox. False on any failure. Each
- * request is stopped after 8 seconds so the admin always gets an answer
- * within a few seconds. */
-async function notifyParents(
-  recipients: ParentRecipient[],
-  term: ScoreTerm,
-): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const to = process.env.NOTICE_TEST_TO;
-
-  if (!apiKey || !to) {
-    return false;
-  }
-
-  const termLabel = `${term.charAt(0).toUpperCase()}${term.slice(1)} Term`;
-
-  // One email per child, sent one at a time to stay inside Resend's rate
-  // limits. All emails still go to the single notice inbox.
-  for (const recipient of recipients) {
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: "POST",
-      signal: AbortSignal.timeout(8000),
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: EMAIL_FROM,
-        to: [to],
-        subject: `${recipient.childName}'s ${termLabel} results are ready`,
-        text: `Dear ${recipient.parentName}, the ${termLabel} results for ${recipient.childName} are now available. Log in to view and download the report sheet. Thank you, Crown Heights Academy.`,
-      }),
-    });
-
-    if (!response.ok) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 export async function approveResult(
@@ -98,29 +55,62 @@ export async function approveResult(
     const classId = String(formData.get("classId") ?? "").trim();
     const term = readTerm(formData.get("term"));
 
-    if (!classId || !term) {
+    if (!/^[0-9a-f-]{36}$/i.test(classId) || !term) {
       return fail;
     }
 
-    if (!(await classExists(classId))) {
+    const currentSession = await getClassSession(classId);
+    if (!currentSession) {
       return fail;
     }
 
-    await setResultsPublished(classId, term, true);
-
-    const recipients = await listClassParentRecipients(classId);
-    const notified = await notifyParents(recipients, term);
-
-    if (!notified) {
-      return fail;
+    const progress = await getClassResultProgress(classId, currentSession, term);
+    if (!progress?.calendarConfigured) return { ok: false, message: "Configure the term calendar before publishing results." };
+    if (!progress?.complete) {
+      return { ok: false, message: `Results are incomplete (${progress?.enteredScores ?? 0} of ${progress?.expectedScores ?? 0} scores entered). Complete the class scores before publishing.` };
     }
+
+    await setResultsPublished(classId, currentSession, term, true, admin.id);
   } catch {
     // Anyunexpected database, auth or email failure still answers the form.
     return fail;
   }
 
   revalidatePath("/dashboard/admin");
-  return { ok: true, message: "Results published." };
+  return { ok: true, message: "Results published. Parent email is a separate step below." };
+}
+
+export async function notifyPublishedResults(
+  _previous: PublishActionState | null,
+  formData: FormData,
+): Promise<PublishActionState> {
+  void _previous;
+  const admin = await getCurrentUser();
+  if (!admin || admin.role !== "admin") return { ok: false, message: "Only the school admin can notify parents." };
+  const id = String(formData.get("id") ?? "").trim();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, message: "Choose a published result." };
+  const publication = (await listPublishedResults()).find((row) => row.id === id);
+  if (!publication) return { ok: false, message: "This result is no longer published." };
+
+  const recipients = await listClassParentRecipients(publication.classId);
+  const grouped = new Map<string, typeof recipients>();
+  for (const recipient of recipients) grouped.set(recipient.parentUserId, [...(grouped.get(recipient.parentUserId) ?? []), recipient]);
+  let sent = 0;
+  let failed = 0;
+  const termName = `${publication.term.charAt(0).toUpperCase()}${publication.term.slice(1)} Term`;
+  for (const group of grouped.values()) {
+    const parent = group[0]!;
+    try {
+      const children = [...new Set(group.map((recipient) => recipient.childName))];
+      await sendEmail({ to: parent.email, ...emailTemplates.resultsPublished(parent.parentName, children.join(", "), `${termName} ${publication.session}`) });
+      sent += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  revalidatePath("/dashboard/admin");
+  if (failed) return { ok: false, message: `Results remain published. Sent to ${sent} parent accounts; ${failed} failed. Retry notifications when email delivery is available.` };
+  return { ok: true, message: recipients.length ? `Results remain published. Notifications sent to ${sent} parent accounts.` : "Results remain published. No linked parents need notification." };
 }
 
 export async function unpublishResult(

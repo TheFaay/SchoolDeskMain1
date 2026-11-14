@@ -16,7 +16,7 @@ phone, use clear language, and save attendance to the shared database.
 - Teacher can save a class list and correct a saved record for the same date.
 - Parent dashboard shows each linked child's absences with date and class; it
   does not expose other students or teacher-only controls.
-- Admin can use the staff marking page; a separate admin overview is deferred.
+- Admin can use the staff marking page and has an admin-only all-class selector.
 
 ## Data model (group-approved)
 
@@ -69,9 +69,8 @@ before exercising the feature against a database.
 
 ## Remaining integration decisions
 
-- V1 currently lets any teacher-role user mark any class because the shared
-  schema has no teacher-class assignment relationship. Add that relationship
-  and scope the class query if the team wants class-assignment restrictions.
+- Teachers can mark only classes assigned through `teacher_assignments` or
+  where they are the class teacher; the save action rechecks this in the
+  transaction.
 - Whether same-day edits need an audit trail beyond the latest marker/time.
-- Whether an admin overview belongs in this feature or the School Admin
-  feature.
+- A separate admin attendance analytics overview remains a future feature.

@@ -8,17 +8,13 @@ export default function Home() {
         A clearer school day starts here.
       </h1>
       <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-        SchoolDesk brings school updates together for teachers and families. Explore the attendance feature preview using fictional sample data.
+        SchoolDesk brings school updates, attendance, fees and results together for families and staff.
       </p>
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-        <Link href="/attendance-preview" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#12264F] px-6 py-3 font-semibold text-white hover:bg-[#0d1b3a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#806200]">
-          Preview attendance
-        </Link>
-        <Link href="/login" className="inline-flex min-h-12 items-center justify-center rounded-xl border-2 border-[#12264F] px-6 py-3 font-semibold text-[#12264F] hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#806200]">
+      <div className="mt-8">
+        <Link href="/login" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#12264F] px-6 py-3 font-semibold text-white hover:bg-[#0d1b3a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#806200]">
           Sign in
         </Link>
       </div>
-      <p className="mt-10 text-sm text-slate-500">Demo records are fictional. Changes in the preview are temporary and are not saved.</p>
     </main>
   );
 }

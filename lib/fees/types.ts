@@ -25,6 +25,7 @@ export type InvoiceLineItem = {
 
 export type Invoice = {
   id: string;
+  invoiceNumber: string;
   studentId: string;
   title: string;
   session: string;
@@ -32,10 +33,14 @@ export type Invoice = {
   amountDue: number;
   dueDate: string;
   issuedAt: string;
+  status: "unpaid" | "partial" | "paid" | "overdue" | "cancelled";
   lineItems: InvoiceLineItem[];
 };
 
-export type InvoiceStatus = "unpaid" | "partial" | "paid";
+export type InvoiceStatus = "unpaid" | "partial" | "paid" | "overdue" | "cancelled";
+
+export type PaymentMethod = "cash" | "bank_transfer" | "card" | "paystack" | "other" | "test";
+export type PaymentStatus = "pending" | "success" | "failed";
 
 export type Payment = {
   id: string;
@@ -43,8 +48,9 @@ export type Payment = {
   amount: number;
   balanceAfter: number;
   paidAt: string;
-  method: "test";
+  method: PaymentMethod;
   reference: string;
   receiptNumber: string;
-  status: "successful";
+  status: PaymentStatus;
+  recordedBy: string | null;
 };

@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FeesNav } from "./_components/fees-nav";
+import { requireRole } from "@/lib/auth/session";
+
+export const instant = false;
 
 export const metadata: Metadata = {
   robots: {
@@ -9,13 +12,13 @@ export const metadata: Metadata = {
   },
 };
 
-export const instant = false;
-
-export default function FeesLayout({
+export default async function FeesLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") return <main className="p-8">You do not have permission to view fees.</main>;
   return (
     <div className="flex-1 bg-slate-50 text-slate-900">
       <header className="border-b-4 border-[#c9a227] bg-[#0b1f3a] text-white print:hidden">
@@ -33,9 +36,11 @@ export default function FeesLayout({
               </span>
             </span>
           </Link>
-          <span className="w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/90">
-            Sample data · Test payments only
-          </span>
+          {process.env.NODE_ENV !== "production" && (
+            <span className="w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/90">
+              Development data · Online checkout is simulated
+            </span>
+          )}
         </div>
       </header>
 

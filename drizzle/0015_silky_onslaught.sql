@@ -1,0 +1,3 @@
+ALTER TABLE "applications" ADD CONSTRAINT "applications_fee_amount_positive_check" CHECK ("applications"."fee_amount" is null or "applications"."fee_amount" > 0);--> statement-breakpoint
+ALTER TABLE "applications" ADD CONSTRAINT "applications_fee_state_check" CHECK ("applications"."fee_status" not in ('pending', 'paid') or ("applications"."fee_amount" is not null and "applications"."fee_amount" > 0));--> statement-breakpoint
+ALTER TABLE "applications" ADD CONSTRAINT "applications_fee_paid_at_check" CHECK ("applications"."fee_status" <> 'paid' or "applications"."fee_paid_at" is not null);

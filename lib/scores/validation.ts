@@ -1,9 +1,5 @@
 import { CA_MAX, calculateScore, EXAM_MAX } from "@/lib/scores/grading";
-import {
-  getTeacherAssignments,
-  TEMP_TEACHER_ID,
-  type ScoreTerm,
-} from "@/lib/scores/data";
+import type { ScoreTerm } from "@/lib/scores/data";
 
 export const TERMS: ScoreTerm[] = ["first", "second", "third"];
 
@@ -27,7 +23,10 @@ export type ValidationResult =
   | { ok: false; errors: Record<string, string> };
 
 function scoreNumber(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "number") {
+    const kobo = value * 100;
+    return Number.isFinite(value) && Math.abs(kobo - Math.round(kobo)) < 1e-8 ? value : null;
+  }
   if (
     typeof value !== "string" ||
     !/^-?(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/.test(value.trim())
@@ -69,6 +68,11 @@ export function validateScoresRequest(input: unknown): ValidationResult {
     const examScore = scoreNumber(row.examScore);
     const messages: string[] = [];
     if (!studentId) messages.push("Student is missing.");
+    if (studentId && row.caScore === "" && row.examScore === "") continue;
+    if (row.caScore === "" || row.examScore === "") {
+      errors[rowKey] = "Enter both CA and exam scores, or leave both blank.";
+      continue;
+    }
     if (caScore === null) messages.push("Enter a numeric CA score.");
     else if (caScore < 0 || caScore > CA_MAX) {
       messages.push(`CA score must be between 0 and ${CA_MAX}.`);
@@ -85,28 +89,10 @@ export function validateScoresRequest(input: unknown): ValidationResult {
     rows.push({ studentId, caScore: caScore!, examScore: examScore!, ...result });
   }
 
+  if (rows.length === 0 && Object.keys(errors).length === 0) errors.form = "Enter at least one score; blank fields are not saved.";
   if (Object.keys(errors).length) return { ok: false, errors };
   return {
     ok: true,
     value: { classId, subjectId, term: term as ScoreTerm, rows },
   };
-}
-
-export async function teacherHasAssignment(
-  teacherId: string,
-  classId: string,
-  subjectId: string,
-) {
-  const assignments = await getTeacherAssignments(teacherId);
-  return assignments.some(
-    (assignment) =>
-      assignment.teacherUserId === teacherId &&
-      assignment.classId === classId &&
-      assignment.subjectId === subjectId,
-  );
-}
-
-// TEMP: use the single placeholder until Better Auth provides a session user.
-export function getCurrentTeacherId() {
-  return TEMP_TEACHER_ID;
 }

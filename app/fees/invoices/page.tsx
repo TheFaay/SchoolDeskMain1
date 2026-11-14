@@ -10,12 +10,16 @@ import {
   listPaymentsForParent,
 } from "@/lib/fees/repository";
 import { StatusBadge } from "../_components/status-badge";
+import { requireRole } from "@/lib/auth/session";
+import PermissionDenied from "@/app/dashboard/PermissionDenied";
 
 export const metadata: Metadata = {
   title: "Invoices | Crown Heights Academy",
 };
 
 export default async function InvoicesPage() {
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") return <main className="mx-auto max-w-xl px-5 py-8"><PermissionDenied /></main>;
   await connection();
 
   const parent = await getCurrentParent();
@@ -130,7 +134,9 @@ export default async function InvoicesPage() {
                           <p className="mt-3 text-sm font-semibold text-[#0b1f3a]">
                             {summary.balance > 0
                               ? "View invoice and pay →"
-                              : "View paid invoice →"}
+                              : summary.status === "cancelled"
+                                ? "View cancelled invoice →"
+                                : "View paid invoice →"}
                           </p>
                         </Link>
                       </li>

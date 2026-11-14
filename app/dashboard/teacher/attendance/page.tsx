@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { AttendanceScreen } from "@/app/attendance/_components/attendance-screen";
 import { saveAttendanceAction } from "./actions";
 import { requireRole } from "@/lib/auth/session";
-import { listAttendanceClasses, listClassAttendance } from "@/lib/attendance/repository";
+import { isAttendanceSchoolDay, listAttendanceClasses, listClassAttendance } from "@/lib/attendance/repository";
 import { getSchoolDate, isSchoolDate } from "@/lib/attendance/date";
 
 import PermissionDenied from "../../PermissionDenied";
@@ -32,7 +32,7 @@ async function AttendancePanel({
   if (gate.status === "forbidden") return <PermissionDenied />;
 
   const query = await searchParams;
-  const classes = await listAttendanceClasses();
+  const classes = await listAttendanceClasses(gate.user.id, gate.user.role === "admin");
   const requestedClassId = first(query.classId) ?? "";
   const selectedClassId = classes.some((item) => item.id === requestedClassId)
     ? requestedClassId
@@ -42,7 +42,8 @@ async function AttendancePanel({
   const date = isSchoolDate(requestedDate) && requestedDate <= today
     ? requestedDate
     : today;
-  const students = selectedClassId
+  const schoolDay = selectedClassId ? await isAttendanceSchoolDay(date) : false;
+  const students = selectedClassId && schoolDay
     ? await listClassAttendance(selectedClassId, date)
     : [];
 
@@ -52,6 +53,7 @@ async function AttendancePanel({
       selectedClassId={selectedClassId}
       date={date}
       today={today}
+      schoolDay={schoolDay}
       students={students}
       saveAction={saveAttendanceAction}
     />

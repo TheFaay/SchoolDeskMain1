@@ -1,30 +1,25 @@
 // Feature 10 layout — scoped to the dashboard pages.
-// Shared navy header with a sign-out button (students of the role demo
-// need to switch accounts), plus the agreed fonts so the shared root
-// layout.tsx stays untouched.
-import { Inter, Poppins } from "next/font/google";
-
+// Shared navy header and sign-out button for authenticated dashboard pages.
 import SignOutButton from "./SignOutButton";
+import { getCurrentUser } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import RoleNavigation from "./RoleNavigation";
 
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-poppins",
-});
+export const instant = false;
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Client components are not an access-control boundary; require a real
+  // Better Auth session for every nested dashboard route.
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
   return (
     <div
-      className={`${inter.variable} ${poppins.variable} min-h-dvh bg-white font-[family-name:var(--font-inter)] text-slate-900`}
+      className="min-h-dvh bg-white font-[family-name:var(--font-inter)] text-slate-900"
     >
       <header className="bg-[#12264F]">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4">
@@ -39,6 +34,11 @@ export default function DashboardLayout({
           <SignOutButton />
         </div>
       </header>
+      <div className="border-b border-slate-200 bg-slate-50">
+        <Suspense fallback={<div className="mx-auto max-w-7xl px-4 pb-3 pt-2 sm:px-6 lg:px-8"><div aria-hidden="true" className="h-11 rounded-lg bg-slate-100" /></div>}>
+          <RoleNavigation role={user.role} />
+        </Suspense>
+      </div>
       {children}
     </div>
   );

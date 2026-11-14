@@ -16,6 +16,8 @@ import {
 } from "@/lib/fees/repository";
 import { PaymentForm } from "../../_components/payment-form";
 import { StatusBadge } from "../../_components/status-badge";
+import { requireRole } from "@/lib/auth/session";
+import PermissionDenied from "@/app/dashboard/PermissionDenied";
 
 export const metadata: Metadata = {
   title: "Invoice | Crown Heights Academy",
@@ -26,6 +28,8 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") return <main className="mx-auto max-w-xl px-5 py-8"><PermissionDenied /></main>;
   await connection();
 
   const { id } = await params;
@@ -46,8 +50,8 @@ export default async function InvoiceDetailPage({
   const summary = getInvoiceSummary(invoice, payments);
   const paidPercentage = getPaidPercentage(invoice, payments);
   const lineItems = getInvoiceLineItems(invoice, payments);
-  const overdue =
-    summary.balance > 0 && new Date(invoice.dueDate) < new Date();
+  const overdue = summary.status === "overdue";
+  const latestSuccessfulPayment = payments.find((payment) => payment.status === "success");
 
   return (
     <div className="space-y-6">
@@ -209,7 +213,7 @@ export default async function InvoiceDetailPage({
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-lg font-bold text-slate-950">Payment history</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Successful payments for this invoice.
+            Payment attempts for this invoice. Only successful payments reduce the balance.
           </p>
 
           {payments.length === 0 ? (
@@ -228,15 +232,17 @@ export default async function InvoiceDetailPage({
                       {formatNaira(payment.amount)}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {formatDateTime(payment.paidAt)} · Test payment
+                      {formatDateTime(payment.paidAt)} · {payment.method.replaceAll("_", " ")} · {payment.status}
                     </p>
                   </div>
-                  <Link
-                    href={`/fees/receipts/${payment.id}`}
-                    className="text-sm font-semibold text-[#0b1f3a] underline decoration-[#c9a227] decoration-2 underline-offset-4 hover:text-[#132f55]"
-                  >
-                    {payment.receiptNumber}
-                  </Link>
+                  {payment.status === "success" ? (
+                    <Link
+                      href={`/fees/receipts/${payment.id}`}
+                      className="text-sm font-semibold text-[#0b1f3a] underline decoration-[#c9a227] decoration-2 underline-offset-4 hover:text-[#132f55]"
+                    >
+                      {payment.receiptNumber}
+                    </Link>
+                  ) : <span className="text-xs font-medium capitalize text-slate-500">{payment.status}</span>}
                 </li>
               ))}
             </ul>
@@ -245,13 +251,13 @@ export default async function InvoiceDetailPage({
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-lg font-bold text-slate-950">
-            {summary.balance > 0 ? "Pay part of the balance" : "Invoice settled"}
+            {summary.balance > 0 ? "Pay the balance" : summary.status === "cancelled" ? "Invoice cancelled" : "Invoice settled"}
           </h2>
 
           {summary.balance > 0 ? (
             <>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                You can pay part of the balance or pay it all.
+                Pay the current outstanding balance securely through Paystack.
               </p>
               <div className="mt-4">
                 <PaymentForm
@@ -263,11 +269,11 @@ export default async function InvoiceDetailPage({
           ) : (
             <div className="mt-4 space-y-4">
               <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                All fees are paid. Thank you!
+                {summary.status === "cancelled" ? "This invoice was cancelled and is not payable." : "All fees are paid. Thank you!"}
               </p>
-              {payments[0] ? (
+              {latestSuccessfulPayment ? (
                 <Link
-                  href={`/fees/receipts/${payments[0].id}`}
+                  href={`/fees/receipts/${latestSuccessfulPayment.id}`}
                   className="inline-block rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#132f55]"
                 >
                   View latest receipt

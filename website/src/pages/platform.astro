@@ -1,0 +1,65 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { parentLoginUrl } from "../lib/public-links";
+---
+---
+
+<BaseLayout
+  title="SchoolDesk School Management Platform | Crown Heights Academy"
+  description="See how Crown Heights Academy uses SchoolDesk to connect family updates, attendance, results, fees, admissions and school administration in one portal."
+>
+  <section class="platform-hero">
+    <div class="container platform-hero-grid">
+      <div>
+        <p class="eyebrow eyebrow--light">The school portal</p>
+        <h1>One clearer view of school life.</h1>
+        <p class="platform-hero-lead">SchoolDesk connects the day-to-day work of Crown Heights Academy with the information families need to stay involved.</p>
+        <div class="button-row">
+          <a class="btn btn--gold" href={parentLoginUrl}>Parent portal <span aria-hidden="true">→</span></a>
+          <a class="btn btn--outline-light" href="/contact">Ask us about SchoolDesk</a>
+        </div>
+      </div>
+      <aside class="platform-summary-card">
+        <span class="platform-summary-icon">CH</span>
+        <p class="eyebrow">Crown Heights Academy</p>
+        <h2>Connected around each student</h2>
+        <p>Attendance, published results, fee information, notices and school events are organised by role in one secure portal.</p>
+        <div class="platform-summary-tags"><span>Families</span><span>Teachers</span><span>School teams</span></div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head section-head--center">
+        <p class="eyebrow">Built around the school community</p>
+        <h2>The right information for each role</h2>
+        <p class="lead">People sign in to a role-based workspace that brings their daily school tasks into focus.</p>
+      </div>
+      <div class="card-grid card-grid--3">
+        <article class="feature-card platform-feature"><span class="platform-feature-number">01</span><h3>For parents and families</h3><p>Follow linked students’ attendance, published term results, fee invoices and receipts, school notices and upcoming events.</p><a class="text-link" href={parentLoginUrl}>Sign in to the portal <span aria-hidden="true">→</span></a></article>
+        <article class="feature-card platform-feature"><span class="platform-feature-number">02</span><h3>For teachers</h3><p>See assigned classes and subjects, record attendance, and enter continuous assessment and exam scores for review.</p><a class="text-link" href="/contact">Ask about teacher access <span aria-hidden="true">→</span></a></article>
+        <article class="feature-card platform-feature"><span class="platform-feature-number">03</span><h3>For school teams</h3><p>Set up academic sessions, manage admissions, publish results, keep fee records and share school notices.</p><a class="text-link" href="/contact">Talk to the school office <span aria-hidden="true">→</span></a></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--paper">
+    <div class="container platform-grid platform-security">
+      <div>
+        <p class="eyebrow">A more joined-up routine</p>
+        <h2>Less searching. More useful conversations.</h2>
+        <p class="lead">When school information is easier to find, families and staff can spend more time discussing a student’s progress and what support comes next.</p>
+        <ul class="platform-checks"><li>Role-based access for parents, teachers, bursars and administrators</li><li>Parent records linked to their own students</li><li>Results are visible to families after the school publishes them</li><li>Online admissions with application payment status tracking</li></ul>
+      </div>
+      <aside class="platform-note"><span class="eyebrow">Designed for the school day</span><h3>Clarity for families. Structure for staff.</h3><p>SchoolDesk is the digital school portal used by Crown Heights Academy. Access depends on a school-issued account and assigned role.</p><a class="btn btn--primary" href={parentLoginUrl}>Go to parent login</a></aside>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container platform-bottom-cta">
+      <div><p class="eyebrow">A school built on partnership</p><h2>Start with a conversation.</h2><p class="lead">Ask us about admissions, the school community or how families use the portal.</p></div>
+      <div class="button-row"><a class="btn btn--primary" href="/contact">Contact Crown Heights Academy</a><a class="btn btn--outline" href="/admissions">Admissions information</a></div>
+    </div>
+  </section>
+</BaseLayout>

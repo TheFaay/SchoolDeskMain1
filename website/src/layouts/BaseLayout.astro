@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import BrandMark from "../components/BrandMark.astro";
+import { applicationUrl, parentLoginUrl } from "../lib/public-links";
 
 interface Props {
   title: string;
@@ -12,6 +13,7 @@ const { title, description } = Astro.props;
 const navItems = [
   { label: "Home", href: "/" },
   { label: "About", href: "/about" },
+  { label: "SchoolDesk platform", href: "/platform" },
   { label: "Admissions", href: "/admissions" },
   { label: "News", href: "/news" },
   { label: "Contact", href: "/contact" },
@@ -25,23 +27,55 @@ function isCurrent(href: string) {
 }
 
 const year = new Date().getFullYear();
+const siteUrl = import.meta.env.PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
+const canonicalUrl = siteUrl ? new URL(Astro.url.pathname, `${siteUrl}/`).toString() : undefined;
+const phone = import.meta.env.PUBLIC_SCHOOL_PHONE?.trim();
+const email = import.meta.env.PUBLIC_SCHOOL_EMAIL?.trim();
+const address = import.meta.env.PUBLIC_SCHOOL_ADDRESS?.trim();
+const socials = [
+  ["Instagram", import.meta.env.PUBLIC_SOCIAL_INSTAGRAM],
+  ["Facebook", import.meta.env.PUBLIC_SOCIAL_FACEBOOK],
+  ["X", import.meta.env.PUBLIC_SOCIAL_X],
+].filter(([, url]) => url?.trim());
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "EducationalOrganization",
+  name: "Crown Heights Academy",
+  description,
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Benin City",
+    addressRegion: "Edo State",
+    addressCountry: "NG",
+    ...(address ? { streetAddress: address } : {}),
+  },
+  areaServed: ["Benin City", "Edo State"],
+  ...(phone ? { telephone: phone } : {}),
+  ...(email ? { email } : {}),
+  ...(canonicalUrl ? { url: new URL("/", `${siteUrl}/`).toString() } : {}),
+  ...(socials.length ? { sameAs: socials.map(([, url]) => url) } : {}),
+};
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en-NG">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#0a2140" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Crown Heights Academy" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:locale" content="en_NG" />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
     <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json" set:html={JSON.stringify(organizationSchema)} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -68,6 +102,8 @@ const year = new Date().getFullYear();
           class="nav-check"
           type="checkbox"
           id="nav-toggle"
+          aria-label="Main navigation menu"
+          aria-controls="site-nav"
         />
         <label class="nav-toggle" for="nav-toggle">
           <span class="menu-icon" aria-hidden="true">
@@ -76,7 +112,7 @@ const year = new Date().getFullYear();
           <span>Menu</span>
         </label>
 
-        <nav class="site-nav" aria-label="Main navigation">
+        <nav class="site-nav" id="site-nav" aria-label="Main navigation">
           <ul class="nav-list">
             {
               navItems.map((item) => (
@@ -92,12 +128,12 @@ const year = new Date().getFullYear();
               ))
             }
           </ul>
-          <a class="btn btn--primary nav-apply" href="/admissions">
+          <a class="btn btn--primary nav-apply" href={applicationUrl}>
             Apply now <span class="btn-arrow" aria-hidden="true">→</span>
           </a>
         </nav>
 
-        <a class="btn btn--primary header-cta" href="/admissions">Apply now</a>
+        <a class="btn btn--primary header-cta" href={applicationUrl}>Apply now</a>
       </div>
     </header>
 
@@ -127,16 +163,18 @@ const year = new Date().getFullYear();
             <ul class="footer-links">
               <li><a href="/">Home</a></li>
               <li><a href="/about">About us</a></li>
+              <li><a href="/platform">SchoolDesk platform</a></li>
               <li><a href="/admissions">Admissions</a></li>
               <li><a href="/news">News &amp; notices</a></li>
               <li><a href="/contact">Contact</a></li>
+              <li><a href={parentLoginUrl}>Parent login</a></li>
             </ul>
           </div>
 
           <div>
             <h2>Admissions</h2>
             <ul class="footer-links">
-              <li><a href="/admissions">How to apply</a></li>
+              <li><a href={applicationUrl}>Apply online</a></li>
               <li><a href="/admissions">Classes JSS 1 – SS 3</a></li>
               <li><a href="/admissions">Documents needed</a></li>
               <li><a href="/admissions">Entrance exam</a></li>
@@ -146,9 +184,11 @@ const year = new Date().getFullYear();
           <div>
             <h2>Contact</h2>
             <address class="footer-contact">
-              <a href="tel:+2348000000000">+234 800 000 0000</a>
-              <a href="mailto:info@crownheights.example">info@crownheights.example</a>
+              {phone && <a href={`tel:${phone.replace(/[^+\d]/g, "")}`}>{phone}</a>}
+              {email && <a href={`mailto:${email}`}>{email}</a>}
               <span>Benin City, Edo State, Nigeria</span>
+              <a href={parentLoginUrl}>Parent login</a>
+              {socials.map(([label, url]) => <a href={url?.trim()} target="_blank" rel="noreferrer">{label}</a>)}
             </address>
           </div>
         </div>

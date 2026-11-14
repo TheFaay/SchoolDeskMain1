@@ -10,25 +10,22 @@ export interface ChildOption {
 export interface TermOption {
   value: string;
   label: string;
-  /** Shown as "(unpublished)" next to the term name. */
-  published: boolean;
 }
 
 /**
- * Child + term pickers. Changing either one updates the URL (?child=...&term=...)
- * so the same page can be server-rendered for any combination, which is also
- * how report sheets and PDFs will be linked.
+ * Child + published-term pickers. Changing either one updates the URL
+ * (?child=...&term=...) so the results page remains server-rendered.
  *
  * Tap targets are kept large (h-12) for cheap phones, per the style guide.
  */
 export default function ResultSelectors({
-  children: childOptions,
+  childOptions,
   terms,
   selectedChildId,
   selectedTerm,
 }: {
   /** Pickers for which child's results to show. */
-  children: ChildOption[];
+  childOptions: ChildOption[];
   terms: TermOption[];
   selectedChildId: string;
   selectedTerm: string;
@@ -67,12 +64,13 @@ export default function ResultSelectors({
         <select
           className={selectClass}
           value={selectedTerm}
+          disabled={terms.length === 0}
           onChange={(e) => update(selectedChildId, e.target.value)}
         >
+          {terms.length === 0 ? <option value="">No published results yet</option> : null}
           {terms.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
-              {t.published ? "" : " (results not ready)"}
             </option>
           ))}
         </select>

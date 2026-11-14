@@ -1,6 +1,6 @@
 // Feature 4: Results page (parents).
 // Lists one child's subject results for a chosen term, with a Download
-// Report Sheet button. Sample data for now — see app/lib/results/.
+// Report Sheet button. Results are loaded by the lib/results data layer.
 //
 // The page shell is static; the panel below streams once the URL's
 // searchParams are ready (required by Next.js Cache Components).
@@ -11,18 +11,20 @@ import {
   TERM_LABELS,
   subjectTotal,
   type TermLabel,
-} from "@/app/lib/results/sampleData";
-import { gradeForTotal, ordinal } from "@/app/lib/results/scoring";
+} from "@/lib/results/types";
+import { gradeForTotal, ordinal } from "@/lib/results/scoring";
 import {
   canParentView,
   getChildren,
+  getAvailableTerms,
   getClassStanding,
   getCurrentSession,
-  getSampleParent,
+  getTermAvailability,
   getTermResult,
-} from "@/app/lib/results/getResults";
+} from "@/lib/results/getResults";
 import ResultSelectors from "./ResultSelectors";
-import { reportSheetFileName } from "@/app/lib/results/reportSheetFileName";
+import { reportSheetFileName } from "@/lib/results/reportSheetFileName";
+import { requireRole } from "@/lib/auth/session";
 
 // Colours from the Group 5 style guide: navy blue, white, gold.
 const NAVY = "#12264F";
@@ -74,30 +76,29 @@ async function ResultsPanel({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // ---------------------------------------------------------------------
-  // TODO(security): when Better Auth lands, read the parent's real id and
-  // children from the session here, and check the role (parent) BEFORE
-  // any data is fetched or shown. Parents may see only their own children.
-  // Until then we use the sample parent below.
-  // ---------------------------------------------------------------------
-  const parent = getSampleParent();
-  const session = getCurrentSession();
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") {
+    return <main className="p-8">You do not have permission to view results.</main>;
+  }
+  const parent = gate.user;
+  const session = await getCurrentSession();
 
   // URL picks child and term; defaults keep the first view working.
   const url = await searchParams;
-  const requestedChildId = first(url.child) ?? parent.childrenIds[0];
-  const requestedTerm = first(url.term) ?? "First";
-  const term = parseTerm(requestedTerm);
+  const parentChildren = await getChildren(parent.id);
+  if (parentChildren.length === 0) {
+    return <Notice tone="info" title="No children are linked to this account." body="Contact the school office to link your child to your portal account." />;
+  }
+  const requestedChildId = first(url.child) ?? parentChildren[0]?.id ?? "";
+  const requestedTerm = parseTerm(first(url.term));
 
-  const ownsChild = canParentView(parent.id, requestedChildId);
-  const child = getChildren(parent.id).find((c) => c.id === requestedChildId);
+  const ownsChild = await canParentView(parent.id, requestedChildId);
+  const child = parentChildren.find((c) => c.id === requestedChildId);
 
   // Selector state is always needed, even on blocked views.
-  const terms = TERM_LABELS.map((t) => ({
-    value: t,
-    label: `${t} Term`,
-    published:
-      getTermResult(requestedChildId, t, session)?.published ?? false,
-  }));
+  const availableTerms = ownsChild ? await getAvailableTerms(requestedChildId, session) : [];
+  const terms = availableTerms.map((t) => ({ value: t, label: `${t} Term` }));
+  const term = availableTerms.includes(requestedTerm) ? requestedTerm : availableTerms[0] ?? requestedTerm;
 
   let heading: string;
   let content: React.ReactNode;
@@ -113,10 +114,20 @@ async function ResultsPanel({
       />
     );
   } else {
-    const result = getTermResult(requestedChildId, term, session);
+    const availability = await getTermAvailability(requestedChildId, term, session);
+    const result = availability === "ready" ? await getTermResult(requestedChildId, term, session) : null;
     const studentName = child?.name ?? "your child";
 
-    if (!result || !result.published) {
+    if (availability === "no-scores") {
+      heading = `${studentName} — ${term} Term ${session}`;
+      content = <Notice tone="info" title="No scores are available for this term yet." body="The school has not entered scores for this term." />;
+    } else if (availability === "no-calendar") {
+      heading = `${studentName} — ${term} Term ${session}`;
+      content = <Notice tone="info" title="Term details are not available yet." body="The school calendar has not been set up for this term." />;
+    } else if (availability === "no-student") {
+      heading = "Results unavailable";
+      content = <Notice tone="warn" title="This student record is no longer available." body="Contact the school office for help." />;
+    } else if (!result || !result.published) {
       heading = `${studentName} — ${term} Term ${session}`;
       content = (
         <Notice
@@ -126,13 +137,13 @@ async function ResultsPanel({
         />
       );
     } else {
-      const standing = getClassStanding(result);
+      const standing = await getClassStanding(result);
       heading = `${studentName} — ${term} Term ${session}`;
       content = (
         <div className="space-y-6">
           <OverviewChips
             childName={studentName}
-            className={child?.className ?? ""}
+            className={result.className}
             admissionNumber={child?.admissionNumber ?? ""}
             position={ordinal(standing.position)}
             numberInClass={standing.numberInClass}
@@ -142,6 +153,8 @@ async function ResultsPanel({
           />
 
           <SubjectsTable subjects={result.subjects} />
+
+          {child && child.className !== result.className ? <p className="text-sm text-slate-600">This student has since moved classes. This report shows the class recorded for {term} term.</p> : null}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
@@ -165,8 +178,8 @@ async function ResultsPanel({
           </div>
 
           <p className="text-sm text-slate-500">
-            Arrangement follows the school&apos;s standard report sheet: CA 30,
-            Exam 70, Total 100.
+            Arrangement follows the school&apos;s standard report sheet: CA 40,
+            Exam 60, Total 100.
           </p>
         </div>
       );
@@ -180,13 +193,13 @@ async function ResultsPanel({
         className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-4"
       >
         <ResultSelectors
-          children={getChildren(parent.id).map((c) => ({
+          childOptions={parentChildren.map((c) => ({
             id: c.id,
             name: c.name,
           }))}
           terms={terms}
           selectedChildId={requestedChildId}
-          selectedTerm={term}
+          selectedTerm={availableTerms.includes(term) ? term : ""}
         />
       </section>
 
@@ -251,8 +264,8 @@ function SubjectsTable({
         <thead>
           <tr style={{ backgroundColor: NAVY }} className="text-white">
             <Th>Subject</Th>
-            <Th align="center">CA (30)</Th>
-            <Th align="center">Exam (70)</Th>
+            <Th align="center">CA (40)</Th>
+            <Th align="center">Exam (60)</Th>
             <Th align="center">Total (100)</Th>
             <Th align="center">Grade</Th>
             <Th>Remark</Th>

@@ -15,6 +15,8 @@ import {
   listPaymentsForInvoice,
 } from "@/lib/fees/repository";
 import { PrintButton } from "../../../_components/print-button";
+import { requireRole } from "@/lib/auth/session";
+import PermissionDenied from "@/app/dashboard/PermissionDenied";
 
 export const metadata: Metadata = {
   title: "Invoice (print) | Crown Heights Academy",
@@ -25,6 +27,8 @@ export default async function PrintableInvoicePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") return <main className="mx-auto max-w-xl px-5 py-8"><PermissionDenied /></main>;
   await connection();
 
   const { id } = await params;
@@ -77,7 +81,7 @@ export default async function PrintableInvoicePage({
             <p className="mt-1 text-xl font-bold">Fee invoice</p>
           </div>
           <span className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider">
-            Sample invoice
+            {summary.status}
           </span>
         </header>
 
@@ -88,7 +92,7 @@ export default async function PrintableInvoicePage({
                 Invoice number
               </dt>
               <dd className="mt-1 font-semibold text-slate-950">
-                {invoice.id.toUpperCase()}
+                {invoice.invoiceNumber}
               </dd>
             </div>
             <div>
@@ -228,7 +232,7 @@ export default async function PrintableInvoicePage({
           </div>
 
           <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-            This is a sample invoice for testing. No real student data is used.
+            School fees invoice for {student.fullName}, issued to {parent.name}.
           </p>
         </div>
       </article>

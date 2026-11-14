@@ -10,12 +10,16 @@ import {
   listPaymentsForParent,
 } from "@/lib/fees/repository";
 import { StatusBadge } from "./_components/status-badge";
+import { requireRole } from "@/lib/auth/session";
+import PermissionDenied from "@/app/dashboard/PermissionDenied";
 
 export const metadata: Metadata = {
   title: "Fees and payments | Crown Height Academy",
 };
 
 export default async function FeesOverviewPage() {
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") return <main className="mx-auto max-w-xl px-5 py-8"><PermissionDenied /></main>;
   await connection();
 
   const parent = await getCurrentParent();
@@ -28,21 +32,21 @@ export default async function FeesOverviewPage() {
     {
       label: "Total billed",
       value: formatNaira(totals.amountDue),
-      hint: `${invoices.length} invoices`,
+      hint: `${invoices.filter((invoice) => invoice.status !== "cancelled").length} invoices`,
     },
     {
       label: "Total paid",
       value: formatNaira(totals.amountPaid),
-      hint: `${payments.length} test payments`,
+      hint: `${payments.filter((payment) => payment.status === "success").length} successful payments`,
     },
     {
       label: "Balance to pay",
       value: formatNaira(totals.balance),
-      hint: totals.balance > 0 ? "Needs attention" : "All fees are paid",
+      hint: totals.amountDue === 0 ? "No billable invoices" : totals.balance > 0 ? "Needs attention" : "All fees are paid",
     },
   ];
 
-  const recentReceipts = payments.slice(0, 3).flatMap((payment) => {
+  const recentReceipts = payments.filter((payment) => payment.status === "success").slice(0, 3).flatMap((payment) => {
     const invoice = invoices.find((item) => item.id === payment.invoiceId);
     const student = students.find((item) => item.id === invoice?.studentId);
 
@@ -72,21 +76,19 @@ export default async function FeesOverviewPage() {
 
       <section
         aria-label="Fee summary"
-        className="grid gap-3 sm:grid-cols-3 sm:gap-4"
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4"
       >
         {summaryCards.map((card, index) => (
           <div
             key={card.label}
             className={`rounded-2xl border p-4 sm:p-5 ${
-              index === 2
-                ? "border-[#c9a227]/40 bg-[#fffaf0]"
-                : "border-slate-200 bg-white"
+              `${index === 2 ? "border-[#c9a227]/40 bg-[#fffaf0]" : "border-slate-200 bg-white"} ${index === 2 ? "col-span-2 sm:col-span-1" : ""}`
             }`}
           >
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               {card.label}
             </p>
-            <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
+            <p className="mt-2 break-words text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
               {card.value}
             </p>
             <p className="mt-1 text-xs text-slate-500">{card.hint}</p>
@@ -120,8 +122,9 @@ export default async function FeesOverviewPage() {
               (status) => status === "partial",
             ).length;
             const unpaidCount = statuses.filter(
-              (status) => status === "unpaid",
+              (status) => status === "unpaid" || status === "overdue",
             ).length;
+            const cancelledCount = statuses.filter((status) => status === "cancelled").length;
             const nextInvoice = childInvoices.find(
               (invoice) => getInvoiceSummary(invoice, payments).balance > 0,
             );
@@ -153,7 +156,7 @@ export default async function FeesOverviewPage() {
                   <p className="mt-1 text-xs text-slate-500">
                     {childInvoices.length} invoice
                     {childInvoices.length === 1 ? "" : "s"} · {paidCount} paid,{" "}
-                    {partialCount} part-paid, {unpaidCount} unpaid
+                    {partialCount} part-paid, {unpaidCount} unpaid or overdue, {cancelledCount} cancelled
                   </p>
                 </div>
 
@@ -183,7 +186,7 @@ export default async function FeesOverviewPage() {
               Recent receipts
             </h2>
             <p className="text-sm text-slate-600">
-              Your latest successful test payments.
+          Your latest successful payments.
             </p>
           </div>
           <Link
@@ -196,7 +199,7 @@ export default async function FeesOverviewPage() {
 
         {recentReceipts.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-600">
-            No receipts yet. Payments will appear here after a test payment.
+          No receipts yet. Successful payments will appear here.
           </p>
         ) : (
           <ul className="divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white">

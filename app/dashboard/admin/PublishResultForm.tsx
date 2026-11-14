@@ -1,8 +1,6 @@
 "use client";
 
-// Approve-results form for the school admin. The "Approve Result" button
-// first asks for confirmation, because approving notifies parents by email.
-// The approve action re-checks the admin role on the server.
+// Publishing is confirmed; parent notification is an explicit separate action.
 
 import { useActionState, useState } from "react";
 
@@ -78,8 +76,8 @@ export default function PublishResultForm({
       {confirming ? (
         <div className="rounded-xl border border-[#12264F]/30 bg-[#12264F]/5 px-4 py-3">
           <p className="text-sm font-medium text-[#12264F]">
-            Approve and publish these results? Parents will be notified by
-            email.
+            Publish these results now? You can send or retry parent email from
+            the published results list afterward.
           </p>
           <div className="mt-3 flex flex-wrap gap-3">
             {/* No onClick here: removing the submit button mid-click would

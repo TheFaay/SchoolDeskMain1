@@ -15,6 +15,7 @@ export function AttendanceScreen({
   selectedClassId,
   date,
   today,
+  schoolDay,
   students,
   saveAction,
 }: {
@@ -22,6 +23,7 @@ export function AttendanceScreen({
   selectedClassId: string;
   date: string;
   today: string;
+  schoolDay: boolean;
   students: AttendanceRosterStudent[];
   saveAction: (
     state: AttendanceSaveState,
@@ -102,6 +104,10 @@ export function AttendanceScreen({
       {classes.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-300 px-5 py-6 text-sm text-slate-600">
           No classes are available yet. Contact the school administrator.
+        </p>
+      ) : selectedClass && !schoolDay ? (
+        <p role="status" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-950">
+          Attendance cannot be marked on weekends or school holidays. Choose a school day from the calendar.
         </p>
       ) : selectedClass ? (
         <section aria-label="Class attendance roster">

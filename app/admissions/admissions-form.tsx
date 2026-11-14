@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import ApplicationPaymentForm from "./payment/ApplicationPaymentForm";
 
 type CandidateDetails = {
   childFullName: string;
@@ -59,8 +60,6 @@ const documentFields: { name: DocumentKey; label: string }[] = [
 ];
 
 const fileTypeError = "Please upload a PDF, JPG or PNG.";
-const draftSavedMessage =
-  "Your draft has been saved. You can come back to finish it.";
 
 const acceptedFileTypes =
   ".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png";
@@ -85,30 +84,14 @@ const fieldClasses =
 const fileInputClasses =
   "block w-full cursor-pointer text-sm text-[#475569] file:mr-4 file:min-h-11 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#0B1F3A] file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-[#14315C] focus:outline-none";
 
-const applicationFee = "₦5,000";
-const paymentNotice = "Test mode: no real money is charged.";
-const paymentReceivedMessage = "Payment received. Thank you.";
-const examDate = "Saturday, 16 Jan 2027";
-
 const headingStyle = { fontFamily: "var(--font-poppins)" };
+const examDate = "Saturday, 16 Jan 2027";
 
 const primaryButtonClasses =
   "inline-flex h-12 items-center justify-center rounded-xl bg-[#0B1F3A] px-8 text-base font-semibold text-white shadow-sm transition hover:bg-[#14315C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A227] focus-visible:ring-offset-2 active:scale-[0.99]";
 
-const secondaryButtonClasses =
-  "inline-flex h-12 items-center justify-center gap-2 rounded-xl border-2 bg-white px-6 text-base font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A227] focus-visible:ring-offset-2 active:scale-[0.99]";
-
 const actionRowClasses =
   "flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end print:hidden";
-
-function createApplicationNumber() {
-  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
-    const randomValues = crypto.getRandomValues(new Uint32Array(1));
-    return `CHA-2027-${String(randomValues[0] % 100000).padStart(5, "0")}`;
-  }
-
-  return `CHA-2027-${String(Math.floor(Math.random() * 100000)).padStart(5, "0")}`;
-}
 
 function isAllowedFile(file: File) {
   if (allowedMimeTypes.has(file.type)) {
@@ -215,34 +198,22 @@ function CheckIcon() {
   );
 }
 
-export default function AdmissionsForm() {
+export default function AdmissionsForm({ feeAmountLabel, applicantName, applicantEmail }: { feeAmountLabel: string | null; applicantName: string; applicantEmail: string }) {
   const [step, setStep] = useState(1);
-  const [values, setValues] = useState<CandidateDetails>(initialValues);
+  const [values, setValues] = useState<CandidateDetails>({ ...initialValues, parentFullName: applicantName, parentEmail: applicantEmail });
   const [documents, setDocuments] = useState<DocumentFiles>(initialDocuments);
   const [documentErrors, setDocumentErrors] = useState<DocumentErrors>({});
-  const [saved, setSaved] = useState(false);
-  const [draftMessage, setDraftMessage] = useState(false);
-  const [paymentReceived, setPaymentReceived] = useState(false);
   const [applicationNumber, setApplicationNumber] = useState("");
+  const [submissionError, setSubmissionError] = useState("");
+  const [paymentError, setPaymentError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
-  const continueButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (step > 1) {
       sectionRef.current?.scrollIntoView({ block: "start" });
     }
   }, [step]);
-
-  useEffect(() => {
-    if (paymentReceived && step === 3) {
-      continueButtonRef.current?.focus();
-    }
-  }, [paymentReceived, step]);
-
-  function clearSavedState() {
-    setSaved(false);
-    setDraftMessage(false);
-  }
 
   function handleChange(
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -253,8 +224,6 @@ export default function AdmissionsForm() {
       ...current,
       [name]: value,
     }));
-
-    clearSavedState();
   }
 
   function handleFileChange(
@@ -280,7 +249,6 @@ export default function AdmissionsForm() {
         ...current,
         [name]: fileTypeError,
       }));
-      clearSavedState();
       return;
     }
 
@@ -290,7 +258,6 @@ export default function AdmissionsForm() {
       delete next[name];
       return next;
     });
-    clearSavedState();
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -298,42 +265,65 @@ export default function AdmissionsForm() {
 
     if (step === 1) {
       setStep(2);
-      clearSavedState();
       return;
     }
 
     if (step === 2) {
       setStep(3);
-      clearSavedState();
       return;
     }
 
-    if (step === 3 && paymentReceived) {
+    if (step === 3) {
       setStep(4);
       return;
     }
 
     if (step === 4) {
-      setApplicationNumber(createApplicationNumber());
-      setStep(5);
+      event.preventDefault();
+      void submitApplication();
     }
   }
 
-  function handleSaveDraft() {
-    setSaved(true);
-    setDraftMessage(true);
+  async function submitApplication() {
+    setSubmitting(true);
+    setSubmissionError("");
+    const data = new FormData();
+    for (const [key, value] of Object.entries(values)) data.set(key, value);
+    data.set("website", "");
+    for (const [key, file] of Object.entries(documents)) if (file) data.set(key, file);
+    try {
+      const response = await fetch("/api/admissions", { method: "POST", body: data });
+      const result = await response.json() as { referenceNumber?: string; authorizationUrl?: string; paymentError?: string; error?: string };
+      if (!response.ok || !result.referenceNumber) throw new Error(result.error || "The application could not be submitted.");
+      setApplicationNumber(result.referenceNumber);
+      if (result.authorizationUrl) {
+        window.location.assign(result.authorizationUrl);
+        return;
+      }
+      setPaymentError(result.paymentError || "The application was saved, but checkout did not start.");
+      setStep(5);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : "The application could not be submitted.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <div ref={sectionRef}>
       <StepBar currentStep={step} />
+      <p className="mt-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
+        Application fee: <strong className="text-[#0B1F3A]">{feeAmountLabel ?? "Temporarily unavailable"}</strong>{feeAmountLabel ? " · Pay securely with Paystack before receiving the entrance exam pass slip." : " · Please contact the school office before applying."}
+      </p>
       <div className="my-7 h-px bg-[#E6EBF1] print:hidden" aria-hidden="true" />
 
       <form
         aria-labelledby="admissions-title"
         onSubmit={handleSubmit}
+        encType="multipart/form-data"
         className="space-y-5"
       >
+        <div aria-hidden="true" className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"><label htmlFor="website">Leave this field empty</label><input id="website" name="website" tabIndex={-1} autoComplete="off" /></div>
         {step === 1 && (
           <>
             <div>
@@ -454,17 +444,17 @@ export default function AdmissionsForm() {
 
               <div>
                 <label htmlFor="parentEmail" className={labelClasses}>
-                  Parent email
+                  Verified parent / guardian email
                 </label>
                 <input
                   id="parentEmail"
                   name="parentEmail"
                   type="email"
                   required
+                  readOnly
                   autoComplete="email"
                   value={values.parentEmail}
-                  onChange={handleChange}
-                  className={fieldClasses}
+                  className={`${fieldClasses} bg-slate-50`}
                 />
               </div>
             </div>
@@ -526,28 +516,11 @@ export default function AdmissionsForm() {
         {step === 3 && (
           <>
             <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5 sm:p-6">
-              <p className="text-sm font-medium text-[#475569]">
-                Application fee
-              </p>
-              <p
-                className="mt-1 text-3xl font-semibold tracking-tight text-[#0B1F3A]"
-                style={headingStyle}
-              >
-                {applicationFee}
-              </p>
+              <p className="text-sm font-medium text-[#475569]">Application fee</p>
               <p className="mt-3 border-t border-[#E2E8F0] pt-3 text-sm leading-relaxed text-[#475569]">
-                {paymentNotice}
+                {feeAmountLabel ? "Pay securely with Paystack after submitting the application. The entrance exam pass slip is issued after the school confirms payment." : "Online applications are temporarily unavailable. Please contact the school office."}
               </p>
             </div>
-
-            {paymentReceived && (
-              <p
-                role="status"
-                className="rounded-xl border border-[#C9A227]/40 bg-[#FFF9E6] px-4 py-3 text-sm font-medium leading-relaxed text-[#0B1F3A]"
-              >
-                {paymentReceivedMessage}
-              </p>
-            )}
           </>
         )}
 
@@ -564,116 +537,34 @@ export default function AdmissionsForm() {
         )}
 
         {step === 5 && (
-          <div className="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white print:rounded-none print:border-0">
-            <div className="border-b border-[#E2E8F0] bg-[#0B1F3A] px-5 py-4 text-white print:border-[#0B1F3A] print:bg-white print:text-[#0B1F3A] sm:px-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#C9A227] print:text-[#0B1F3A]">
-                Crown Heights Academy
-              </p>
-              <p
-                className="mt-1 text-xl font-semibold tracking-tight"
-                style={headingStyle}
-              >
-                Entrance exam pass slip
-              </p>
-            </div>
-
-            <dl className="grid gap-5 px-5 py-6 sm:grid-cols-2 sm:px-6">
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#475569]">
-                  Child&apos;s name
-                </dt>
-                <dd className="mt-1 text-base font-medium text-[#0B1F3A]">
-                  {values.childFullName}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#475569]">
-                  Class
-                </dt>
-                <dd className="mt-1 text-base font-medium text-[#0B1F3A]">
-                  {values.classApplyingFor}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#475569]">
-                  Application number
-                </dt>
-                <dd className="mt-1 text-base font-semibold tracking-wide text-[#0B1F3A] tabular-nums">
-                  {applicationNumber}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#475569]">
-                  Exam date
-                </dt>
-                <dd className="mt-1 text-base font-medium text-[#0B1F3A]">
-                  {examDate}
-                </dd>
-              </div>
-            </dl>
-          </div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#806200]">Application received</p>
+            <h2 className="mt-1 font-[family-name:var(--font-poppins)] text-xl font-semibold text-[#12264F]">Payment is needed for your pass slip</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Your application reference is <strong>{applicationNumber}</strong>. {paymentError || "Continue to the secure checkout to pay the application fee."}</p>
+            <ApplicationPaymentForm initialReference={applicationNumber} initialEmail={values.parentEmail} />
+          </section>
         )}
 
-        {step <= 2 && draftMessage && (
-          <p
-            role="status"
-            className="rounded-xl border border-[#C9A227]/40 bg-[#FFF9E6] px-4 py-3 text-sm leading-relaxed text-[#0B1F3A] print:hidden"
-          >
-            {draftSavedMessage}
-          </p>
-        )}
+        {submissionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{submissionError}</p>}
 
-        {step <= 2 && (
+        {step === 1 && (
           <div className={actionRowClasses}>
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className={`${secondaryButtonClasses} ${
-                saved
-                  ? "border-[#C9A227] text-[#0B1F3A]"
-                  : "border-[#0B1F3A] text-[#0B1F3A] hover:bg-[#F1F5F9]"
-              }`}
-            >
-              {saved && <CheckIcon />}
-              Save draft
-            </button>
-
             <button type="submit" className={primaryButtonClasses}>
               Continue
             </button>
           </div>
         )}
 
-        {step === 3 && (
+        {step >= 2 && step <= 4 && (
           <div className={actionRowClasses}>
-            {paymentReceived ? (
-              <button
-                ref={continueButtonRef}
-                type="submit"
-                className={primaryButtonClasses}
-              >
-                Continue
-              </button>
+            <button type="button" onClick={() => setStep((current) => current - 1)} className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 px-6 text-base font-semibold text-[#0B1F3A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A227]">Back</button>
+            {step < 4 ? (
+              <button type="submit" disabled={step === 3 && !feeAmountLabel} className={`${primaryButtonClasses} disabled:cursor-not-allowed disabled:opacity-50`}>Continue</button>
             ) : (
-              <button
-                type="button"
-                onClick={() => setPaymentReceived(true)}
-                className={primaryButtonClasses}
-              >
-                Pay application fee
+              <button type="submit" disabled={submitting} className={`${primaryButtonClasses} disabled:opacity-60`}>
+                {submitting ? "Submitting…" : "Submit application"}
               </button>
             )}
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className={actionRowClasses}>
-            <button type="submit" className={primaryButtonClasses}>
-              Continue
-            </button>
           </div>
         )}
 
@@ -684,7 +575,7 @@ export default function AdmissionsForm() {
               onClick={() => window.print()}
               className={primaryButtonClasses}
             >
-              Download pass slip
+              Print / save pass slip
             </button>
           </div>
         )}

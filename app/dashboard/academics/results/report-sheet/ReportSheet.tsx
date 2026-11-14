@@ -10,9 +10,9 @@ import {
   SCHOOL_NAME,
   subjectTotal,
   type TermResult,
-} from "@/app/lib/results/sampleData";
-import { gradeForTotal, GRADING_KEY, ordinal } from "@/app/lib/results/scoring";
-import type { ClassStanding } from "@/app/lib/results/getResults";
+} from "@/lib/results/types";
+import { gradeForTotal, GRADING_KEY, ordinal } from "@/lib/results/scoring";
+import type { ClassStanding } from "@/lib/results/getResults";
 
 const NAVY = "#12264F";
 const GOLD = "#C9A227";
@@ -95,7 +95,7 @@ export default function ReportSheet(props: ReportSheetProps) {
       <table className="mt-4 w-full border-collapse text-sm print:text-[11px]">
         <thead>
           <tr style={{ backgroundColor: NAVY }}>
-            {["Subject", "CA (30)", "Exam (70)", "Total (100)", "Grade", "Remark"].map(
+            {["Subject", "CA (40)", "Exam (60)", "Total (100)", "Grade", "Remark"].map(
               (h, i) => (
                 <th
                   key={h}
@@ -168,7 +168,8 @@ export default function ReportSheet(props: ReportSheetProps) {
         </p>
       </section>
 
-      {/* ---------- Conduct ratings ---------- */}
+      {/* Conduct is omitted until the school stores real ratings. */}
+      {result.conduct.length > 0 ? <>
       <section aria-label="Conduct" className="mt-3 border border-slate-400 px-3 py-2">
         <p className="text-center text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: NAVY }}>
           Affective and Psychomotor — Conduct Rating
@@ -182,22 +183,7 @@ export default function ReportSheet(props: ReportSheetProps) {
           ))}
         </ul>
       </section>
-
-      {/* ---------- Comments ---------- */}
-      <section aria-label="Comments" className="mt-3 space-y-2 text-sm">
-        <div className="border border-slate-400 px-3 py-2">
-          <p>
-            <span className="font-semibold">Class Teacher&apos;s Comment:</span>{" "}
-            {result.classTeacherComment}
-          </p>
-        </div>
-        <div className="border border-slate-400 px-3 py-2">
-          <p>
-            <span className="font-semibold">Principal&apos;s Comment:</span>{" "}
-            {result.principalComment}
-          </p>
-        </div>
-      </section>
+      </> : null}
 
       {/* ---------- Signatures and next term ---------- */}
       <div className="mt-5 grid grid-cols-3 items-end gap-4 text-center text-xs sm:text-sm">

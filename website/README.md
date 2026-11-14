@@ -1,43 +1,31 @@
-# Astro Starter Kit: Minimal
+# Crown Heights Academy public website
 
-```sh
-npm create astro@latest -- --template minimal
+This is the public, static Astro site for Crown Heights Academy. It includes school information, admissions, news, and a SchoolDesk platform overview. The working SchoolDesk portal remains a separate Next.js app and deployment.
+
+## Local development
+
+```powershell
+cd website
+npm.cmd ci
+$env:PUBLIC_PORTAL_URL = "http://localhost:3000"
+$env:PUBLIC_SITE_URL = "http://localhost:4321"
+npm.cmd run dev
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+Set `PUBLIC_PORTAL_URL` to the locally running portal so **Apply now** and **Parent login** open the correct app. Public pages describe JSS 1 to SS 3, the ₦80,000 online application fee, and the 2027/2028 session; the school office confirms assessment arrangements with each applicant. School phone, email, full address, map and social links are optional and omitted until verified. `/platform` describes SchoolDesk features currently in the portal.
 
-## 🚀 Project Structure
+## Production deployment on Vercel
 
-Inside of your Astro project, you'll see the following folders and files:
+Create a separate Vercel project for this site and set **Root Directory** to `website`. Use `npm run build` as the build command and `dist` as the output directory. Install with `npm install` (Vercel) or `npm ci`.
 
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
+Configure these project environment variables for Production and Preview:
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+- `PUBLIC_SITE_URL`: the canonical origin of this website (for example `https://www.school-domain.example`). Used for canonical and Open Graph URLs, `sitemap.xml`, and `robots.txt`.
+- `PUBLIC_PORTAL_URL`: the deployed Next.js portal origin, with no route suffix. The public links append `/admissions` and `/login`.
+- Optional verified public information: `PUBLIC_SCHOOL_PHONE`, `PUBLIC_SCHOOL_EMAIL`, `PUBLIC_SCHOOL_ADDRESS`, `PUBLIC_SCHOOL_MAP_URL`, `PUBLIC_SOCIAL_INSTAGRAM`, `PUBLIC_SOCIAL_FACEBOOK`, and `PUBLIC_SOCIAL_X`.
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+Both site and portal URLs are required for production builds so the deployed calls to action cannot silently point to localhost. Review the generated sitemap and test application/login destinations after setting the real domains.
 
-Any static assets, like images, can be placed in the `public/` directory.
+## Content
 
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+Add Markdown notices under `src/content/news/` with `title`, `summary`, `pubDate`, and `tag` frontmatter. The homepage and `/news` read from this collection.

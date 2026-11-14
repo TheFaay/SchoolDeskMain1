@@ -8,7 +8,7 @@ import { useActionState } from "react";
 
 import { sendNotice, type NoticeResult } from "./sendNotice";
 
-export default function SendNoticeForm() {
+export default function SendNoticeForm({ classes, parents }: { classes: { id: string; name: string }[]; parents: { id: string; name: string; email: string }[] }) {
   const [state, action, pending] = useActionState<NoticeResult | null, FormData>(
     sendNotice,
     null,
@@ -16,6 +16,9 @@ export default function SendNoticeForm() {
 
   return (
     <form action={action} className="space-y-4">
+      <label className="block text-sm font-medium text-slate-700">Audience<select name="audience" className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3" defaultValue="all_parents"><option value="all_parents">All parents</option><option value="class">One class</option><option value="individual">One parent</option></select></label>
+      <label className="block text-sm font-medium text-slate-700">Class<select name="classId" className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3" defaultValue=""><option value="">Choose class</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label className="block text-sm font-medium text-slate-700">Parent<select name="parentId" className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3" defaultValue=""><option value="">Choose parent</option>{parents.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.email}</option>)}</select></label>
       <div>
         <label
           htmlFor="notice-title"

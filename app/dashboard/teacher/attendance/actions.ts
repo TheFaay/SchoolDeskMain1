@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth/session";
-import { saveClassAttendance } from "@/lib/attendance/repository";
+import { isAttendanceSchoolDay, saveClassAttendance } from "@/lib/attendance/repository";
 import { getSchoolDate, isSchoolDate } from "@/lib/attendance/date";
 import type { AttendanceSaveState } from "@/app/attendance/_components/attendance-roster";
 import type { AttendanceStatus } from "@/lib/db/schema";
@@ -32,6 +32,7 @@ export async function saveAttendanceAction(
   if (!UUID_PATTERN.test(classId) || !isSchoolDate(date) || date > getSchoolDate()) {
     return { message: "Choose a valid class and school date.", error: true };
   }
+  if (!(await isAttendanceSchoolDay(date))) return { message: "Attendance cannot be marked on weekends or school holidays.", error: true };
 
   const records: Array<{ studentId: string; status: AttendanceStatus }> = [];
   for (const [field, rawValue] of formData.entries()) {
@@ -57,9 +58,13 @@ export async function saveAttendanceAction(
       classId,
       date,
       markedBy: gate.user.id,
+      isAdmin: gate.user.role === "admin",
       records,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("assigned") || error.message.includes("school day"))) {
+      return { message: error.message, error: true };
+    }
     return {
       message: "We could not save attendance. Check the class list and try again.",
       error: true,

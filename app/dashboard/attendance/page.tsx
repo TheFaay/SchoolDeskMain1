@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { ParentAbsenceList } from "@/app/attendance/_components/parent-absence-list";
-import { listAbsencesForParent } from "@/lib/attendance/repository";
+import { ParentAttendanceList } from "@/app/attendance/_components/parent-attendance-list";
+import { getParentTermAttendance, listAttendanceHistoryForParent } from "@/lib/attendance/repository";
 import { requireRole } from "@/lib/auth/session";
 
 import PermissionDenied from "../PermissionDenied";
@@ -36,7 +36,10 @@ async function ParentAttendancePanel({
   const page = Number.isSafeInteger(requestedPage) && requestedPage >= 0
     ? requestedPage
     : 0;
-  const history = await listAbsencesForParent(gate.user.id, page);
+  const [history, summary] = await Promise.all([
+    listAttendanceHistoryForParent(gate.user.id, page),
+    getParentTermAttendance(gate.user.id),
+  ]);
 
   return (
     <>
@@ -48,11 +51,15 @@ async function ParentAttendancePanel({
           Attendance
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600 sm:text-base">
-          See absences recorded by the school for children linked to your account.
+          Review late, absent and excused records for your children, with their current term attendance summary.
         </p>
       </header>
-      <ParentAbsenceList
-        absences={history.absences}
+      <ParentAttendanceList
+        attendance={history.attendance}
+        summaries={summary.summaries}
+        session={summary.session}
+        term={summary.term}
+        daysOpened={summary.daysOpened}
         page={history.page}
         pageCount={history.pageCount}
       />

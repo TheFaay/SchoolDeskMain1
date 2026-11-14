@@ -5,6 +5,7 @@
 // (parent → /dashboard, teacher → /dashboard/teacher, etc.).
 
 import { createAuthClient } from "better-auth/react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -99,6 +100,17 @@ export default function LoginForm() {
       >
         {submitting ? "Signing in…" : "Sign in"}
       </button>
+      <p className="text-center text-sm">
+        <Link href="/forgot-password" className="font-medium text-[#12264F] underline underline-offset-2">
+          Forgot your password?
+        </Link>
+      </p>
+      <p className="text-center text-sm text-slate-600">
+        New applicant?{" "}
+        <Link href="/admissions/register" className="font-medium text-[#12264F] underline underline-offset-2">
+          Create an account
+        </Link>
+      </p>
     </form>
   );
 }

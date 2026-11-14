@@ -1,93 +1,48 @@
 "use server";
 
-// Portal notices: the admin's one and only email action, sent with Resend's
-// REST API via plain fetch. RESEND_API_KEY and NOTICE_TEST_TO live only in
-// .env and are never printed or returned to the browser.
-
-import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
-
-import { auth } from "@/lib/auth";
+import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
+import { sendEmail } from "@/lib/email/send";
+import { emailTemplates } from "@/lib/email/templates";
 import { db } from "@/lib/db";
-import { user } from "@/lib/db/schema";
+import { notices, noticeRecipients, parentStudents, students, user } from "@/lib/db/schema";
 
-export type NoticeResult = {
-  ok: boolean;
-  message: string;
-};
+export type NoticeResult = { ok: boolean; message: string };
 
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
-
-export async function sendNotice(
-  _previous: NoticeResult | null,
-  formData: FormData,
-): Promise<NoticeResult> {
+export async function sendNotice(_previous: NoticeResult | null, formData: FormData): Promise<NoticeResult> {
   const admin = await getCurrentUser();
-
-  if (!admin) {
-    return { ok: false, message: "You are signed out. Please sign in again." };
-  }
-
+  if (!admin || admin.role !== "admin") return { ok: false, message: "Only an administrator can send notices." };
   const title = String(formData.get("title") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
+  const audience = String(formData.get("audience") ?? "");
+  const classId = String(formData.get("classId") ?? "");
+  const parentId = String(formData.get("parentId") ?? "");
+  if (!title || title.length > 120 || !message || message.length > 2000) return { ok: false, message: "Enter a title and message within the stated limits." };
+  if (!["all_parents", "class", "individual"].includes(audience)) return { ok: false, message: "Choose a notice audience." };
+  if (audience === "class" && !/^[0-9a-f-]{36}$/i.test(classId)) return { ok: false, message: "Choose a class." };
+  if (audience === "individual" && !parentId) return { ok: false, message: "Choose a parent." };
 
-  if (!title || !message) {
-    return { ok: false, message: "Please fill in both a title and a message." };
+  let recipients: { id: string; email: string; name: string }[];
+  if (audience === "individual") {
+    recipients = await db.select({ id: user.id, email: user.email, name: user.name }).from(user).where(and(eq(user.id, parentId), eq(user.role, "parent")));
+  } else if (audience === "class") {
+    recipients = await db.selectDistinct({ id: user.id, email: user.email, name: user.name }).from(parentStudents).innerJoin(students, eq(students.id, parentStudents.studentId)).innerJoin(user, eq(user.id, parentStudents.parentUserId)).where(and(eq(user.role, "parent"), eq(students.classId, classId)));
+  } else {
+    recipients = await db.select({ id: user.id, email: user.email, name: user.name }).from(user).where(eq(user.role, "parent"));
   }
-
-  const apiKey = process.env.RESEND_API_KEY;
-  const to = process.env.NOTICE_TEST_TO;
-
-  if (!apiKey || !to) {
-    return {
-      ok: false,
-      message: "We could not send the notice. Please try again.",
-    };
+  if (!recipients.length) return { ok: false, message: "No parent accounts match that audience." };
+  const [notice] = await db.insert(notices).values({ title, body: message, audience: audience as "all_parents" | "class" | "individual", classId: audience === "class" ? classId : null, createdBy: admin.id }).returning({ id: notices.id });
+  if (audience === "individual") await db.insert(noticeRecipients).values({ noticeId: notice!.id, userId: recipients[0]!.id });
+  let sent = 0;
+  let failed = 0;
+  for (const recipient of recipients) {
+    try {
+      await sendEmail({ to: recipient.email, ...emailTemplates.notice(recipient.name, title, message) });
+      sent++;
+    } catch { failed++; }
   }
-
-  // The parent's real name comes from the parent account on record.
-  const parents = await db
-    .select({ name: user.name })
-    .from(user)
-    .where(eq(user.role, "parent"))
-    .limit(1);
-  const parentName = parents[0]?.name;
-
-  if (!parentName) {
-    return {
-      ok: false,
-      message: "We could not send the notice. Please try again.",
-    };
-  }
-
-  const response = await fetch(RESEND_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "Crown Heights Academy <onboarding@resend.dev>",
-      to: [to],
-      subject: title,
-      text: [
-        `Dear ${parentName},`,
-        "",
-        message,
-        "",
-        "Thank you.",
-        "Crown Heights Academy",
-      ].join("\n"),
-    }),
-  });
-
-  if (!response.ok) {
-    return {
-      ok: false,
-      message: "We could not send the notice. Please try again.",
-    };
-  }
-
-  return { ok: true, message: "Notice sent." };
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard");
+  return { ok: failed === 0, message: `Notice saved to parent dashboards. Email sent: ${sent}; failed: ${failed}.` };
 }

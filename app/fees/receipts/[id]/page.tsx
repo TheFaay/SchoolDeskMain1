@@ -10,6 +10,8 @@ import {
   getStudentById,
 } from "@/lib/fees/repository";
 import { PrintButton } from "../../_components/print-button";
+import { requireRole } from "@/lib/auth/session";
+import PermissionDenied from "@/app/dashboard/PermissionDenied";
 
 export const metadata: Metadata = {
   title: "Receipt | Crown Heights Academy",
@@ -22,6 +24,8 @@ export default async function ReceiptDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ paid?: string }>;
 }) {
+  const gate = await requireRole("parent", "admin");
+  if (gate.status === "forbidden") return <main className="mx-auto max-w-xl px-5 py-8"><PermissionDenied /></main>;
   await connection();
 
   const { id } = await params;
@@ -93,7 +97,7 @@ export default async function ReceiptDetailPage({
             <p className="mt-1 text-xl font-bold">School fees receipt</p>
           </div>
           <span className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider">
-            Test payment
+            {payment.method === "test" ? "Test payment" : "Successful payment"}
           </span>
         </header>
 
@@ -146,6 +150,14 @@ export default async function ReceiptDetailPage({
               <dd className="mt-1 font-semibold text-slate-950">
                 {student.admissionNumber}
               </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Session · term</dt>
+              <dd className="mt-1 font-semibold text-slate-950">{invoice.session} · {invoice.term}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Payment method</dt>
+              <dd className="mt-1 font-semibold capitalize text-slate-950">{payment.method.replaceAll("_", " ")}</dd>
             </div>
           </dl>
 
@@ -209,16 +221,13 @@ export default async function ReceiptDetailPage({
               </dt>
               <dd className="mt-1">
                 <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                  Successful test payment
+                  Successful {payment.method === "test" ? "test " : ""}payment
                 </span>
               </dd>
             </div>
           </dl>
 
-          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-            <span className="font-semibold">Test receipt.</span> This payment was
-            simulated for testing. No real money was collected.
-          </p>
+          {payment.method === "test" ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"><span className="font-semibold">Test receipt.</span> This payment was simulated for testing. No real money was collected.</p> : null}
         </div>
       </article>
     </div>

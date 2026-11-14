@@ -1,4 +1,5 @@
 import { formatNaira } from "./format";
+import { getLagosDate } from "./date";
 import type {
   FeeItemStatus,
   Invoice,
@@ -6,8 +7,6 @@ import type {
   InvoiceStatus,
   Payment,
 } from "./types";
-
-export const MIN_PART_PAYMENT_NAIRA = 1_000;
 
 export type InvoiceSummary = {
   amountDue: number;
@@ -29,15 +28,63 @@ export type InvoiceLineItemView = InvoiceLineItem & {
 export type PaymentValidation =
   | {
       ok: true;
-      amount: number;
-      balanceBefore: number;
-      balanceAfter: number;
-      status: InvoiceStatus;
+      amountKobo: number;
+      balanceBeforeKobo: number;
+      balanceAfterKobo: number;
     }
-  | {
-      ok: false;
-      error: string;
-    };
+  | { ok: false; error: string };
+
+export function parseNairaToKobo(value: string): number | null {
+  const normalized = value.trim();
+  const match = /^(\d{1,10})(?:\.(\d{1,2}))?$/.exec(normalized);
+  if (!match) return null;
+  const wholeNaira = Number(match[1]);
+  const kobo = Number((match[2] ?? "").padEnd(2, "0"));
+  const amountKobo = wholeNaira * 100 + kobo;
+  return Number.isSafeInteger(amountKobo) ? amountKobo : null;
+}
+
+export function nairaToKobo(value: number): number {
+  return Number.isFinite(value) ? Math.round(value * 100) : 0;
+}
+
+export function koboToNaira(value: number): number {
+  return value / 100;
+}
+
+export function koboToDecimal(value: number): string {
+  const whole = Math.floor(value / 100);
+  const cents = String(value % 100).padStart(2, "0");
+  return `${whole}.${cents}`;
+}
+
+export function koboToInput(value: number): string {
+  const whole = Math.floor(value / 100);
+  const cents = String(value % 100).padStart(2, "0");
+  return cents === "00" ? String(whole) : `${whole}.${cents}`;
+}
+
+export function decimalToKobo(value: string): number {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+  if (!match) throw new Error("Invalid money value in the database.");
+  const kobo = BigInt(match[1]) * BigInt(100) + BigInt((match[2] ?? "").padEnd(2, "0"));
+  if (kobo > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("Money value exceeds the safe kobo range.");
+  return Number(kobo);
+}
+
+export function deriveInvoiceStatus(input: {
+  amountDueKobo: number;
+  amountPaidKobo: number;
+  dueDate: string;
+  cancelled?: boolean;
+  today?: string;
+}): InvoiceStatus {
+  if (input.cancelled) return "cancelled";
+  if (input.amountPaidKobo >= input.amountDueKobo) return "paid";
+  if (input.dueDate < (input.today ?? getLagosDate())) return "overdue";
+  if (input.amountPaidKobo > 0) return "partial";
+  return "unpaid";
+}
 
 export function getSuccessfulPayments(
   invoiceId: string,
@@ -45,47 +92,39 @@ export function getSuccessfulPayments(
 ): Payment[] {
   return payments.filter(
     (payment) =>
-      payment.invoiceId === invoiceId && payment.status === "successful",
+      payment.invoiceId === invoiceId && payment.status === "success",
   );
 }
 
-export function getAmountPaid(invoiceId: string, payments: Payment[]): number {
+export function getAmountPaidKobo(invoiceId: string, payments: Payment[]): number {
   return getSuccessfulPayments(invoiceId, payments).reduce(
-    (total, payment) => total + payment.amount,
+    (total, payment) => total + nairaToKobo(payment.amount),
     0,
   );
-}
-
-export function getBalance(amountDue: number, amountPaid: number): number {
-  return Math.max(0, amountDue - amountPaid);
-}
-
-export function getInvoiceStatus(
-  amountDue: number,
-  amountPaid: number,
-): InvoiceStatus {
-  if (amountDue <= 0 || amountPaid >= amountDue) {
-    return "paid";
-  }
-
-  if (amountPaid > 0) {
-    return "partial";
-  }
-
-  return "unpaid";
 }
 
 export function getInvoiceSummary(
   invoice: Invoice,
   payments: Payment[],
+  today = getLagosDate(),
 ): InvoiceSummary {
-  const amountPaid = getAmountPaid(invoice.id, payments);
+  const amountDueKobo = nairaToKobo(invoice.amountDue);
+  const amountPaidKobo = getAmountPaidKobo(invoice.id, payments);
+  const balanceKobo = invoice.status === "cancelled"
+    ? 0
+    : Math.max(0, amountDueKobo - amountPaidKobo);
 
   return {
-    amountDue: invoice.amountDue,
-    amountPaid,
-    balance: getBalance(invoice.amountDue, amountPaid),
-    status: getInvoiceStatus(invoice.amountDue, amountPaid),
+    amountDue: koboToNaira(amountDueKobo),
+    amountPaid: koboToNaira(amountPaidKobo),
+    balance: koboToNaira(balanceKobo),
+    status: deriveInvoiceStatus({
+      amountDueKobo,
+      amountPaidKobo,
+      dueDate: invoice.dueDate,
+      cancelled: invoice.status === "cancelled",
+      today,
+    }),
   };
 }
 
@@ -94,7 +133,6 @@ export function getInvoiceLineItems(
   payments: Payment[],
 ): InvoiceLineItemView[] {
   const fullyPaid = getInvoiceSummary(invoice, payments).status === "paid";
-
   return invoice.lineItems.map((lineItem) => ({
     ...lineItem,
     status: fullyPaid ? "paid" : lineItem.status,
@@ -105,84 +143,65 @@ export function getPaidPercentage(
   invoice: Invoice,
   payments: Payment[],
 ): number {
-  const summary = getInvoiceSummary(invoice, payments);
-
-  if (summary.amountDue <= 0) {
-    return 100;
-  }
-
-  return Math.min(
-    100,
-    Math.round((summary.amountPaid / summary.amountDue) * 100),
-  );
+  const amountDueKobo = nairaToKobo(invoice.amountDue);
+  if (amountDueKobo <= 0) return 100;
+  const amountPaidKobo = getAmountPaidKobo(invoice.id, payments);
+  return Math.min(100, Math.round((amountPaidKobo / amountDueKobo) * 100));
 }
 
 export function getFeeTotals(
   invoices: Invoice[],
   payments: Payment[],
 ): FeeTotals {
-  return invoices.reduce<FeeTotals>(
-    (totals, invoice) => {
+  const totals = invoices.reduce(
+    (result, invoice) => {
+      if (invoice.status === "cancelled") return result;
       const summary = getInvoiceSummary(invoice, payments);
-
-      return {
-        amountDue: totals.amountDue + summary.amountDue,
-        amountPaid: totals.amountPaid + summary.amountPaid,
-        balance: totals.balance + summary.balance,
-      };
+      result.amountDueKobo += nairaToKobo(summary.amountDue);
+      result.amountPaidKobo += nairaToKobo(summary.amountPaid);
+      result.balanceKobo += nairaToKobo(summary.balance);
+      return result;
     },
-    { amountDue: 0, amountPaid: 0, balance: 0 },
+    { amountDueKobo: 0, amountPaidKobo: 0, balanceKobo: 0 },
   );
-}
 
-export function getMinimumPartPayment(balance: number): number {
-  return Math.min(MIN_PART_PAYMENT_NAIRA, balance);
+  return {
+    amountDue: koboToNaira(totals.amountDueKobo),
+    amountPaid: koboToNaira(totals.amountPaidKobo),
+    balance: koboToNaira(totals.balanceKobo),
+  };
 }
 
 export function validatePayment(input: {
   invoice: Invoice;
   payments: Payment[];
-  amount: number;
+  amountKobo: number;
 }): PaymentValidation {
-  const { invoice, payments, amount } = input;
-  const amountPaid = getAmountPaid(invoice.id, payments);
-  const balance = getBalance(invoice.amountDue, amountPaid);
-
-  if (balance <= 0) {
-    return {
-      ok: false,
-      error: "This invoice is already fully paid.",
-    };
+  const { invoice, payments, amountKobo } = input;
+  if (invoice.status === "cancelled") {
+    return { ok: false, error: "Cancelled invoices cannot be paid." };
   }
+  const amountDueKobo = nairaToKobo(invoice.amountDue);
+  const amountPaidKobo = getAmountPaidKobo(invoice.id, payments);
+  const balanceKobo = Math.max(0, amountDueKobo - amountPaidKobo);
 
-  if (!Number.isInteger(amount) || amount <= 0) {
-    return {
-      ok: false,
-      error: "Enter a valid amount in whole Naira.",
-    };
+  if (balanceKobo <= 0) {
+    return { ok: false, error: "This invoice is already fully paid." };
   }
-
-  if (amount > balance) {
-    return {
-      ok: false,
-      error: `The outstanding balance is ${formatNaira(balance)}. You cannot pay more than that.`,
-    };
+  if (!Number.isSafeInteger(amountKobo) || amountKobo < 1) {
+    return { ok: false, error: "Enter an amount of at least ₦0.01." };
   }
-
-  const minimumPartPayment = getMinimumPartPayment(balance);
-
-  if (amount < balance && amount < minimumPartPayment) {
+  if (amountKobo > balanceKobo) {
     return {
       ok: false,
-      error: `Part payments must be at least ${formatNaira(minimumPartPayment)}. You can also pay the full balance of ${formatNaira(balance)}.`,
+      error: `The outstanding balance is ${formatNaira(koboToNaira(balanceKobo))}. You cannot pay more than that.`,
     };
   }
 
   return {
     ok: true,
-    amount,
-    balanceBefore: balance,
-    balanceAfter: balance - amount,
-    status: getInvoiceStatus(invoice.amountDue, amountPaid + amount),
+    amountKobo,
+    balanceBeforeKobo: balanceKobo,
+    balanceAfterKobo: balanceKobo - amountKobo,
   };
 }

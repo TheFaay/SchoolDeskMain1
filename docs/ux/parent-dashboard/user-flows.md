@@ -7,7 +7,7 @@ Feature 3: Parent dashboard for SchoolDesk fees, results, and notices.
 ```mermaid
 flowchart TD
     A([Start]) --> B[Open SchoolDesk]
-    B --> C[Enter parent email or phone and password]
+    B --> C[Enter parent email and password]
     C --> D[Submit login]
     D --> E{Credentials valid?}
     E -- No --> F[Show sign-in error]
